@@ -1,0 +1,258 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>GPS Tracker BBB Remoto</title>
+
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+    <style>
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #status {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+
+            background: white;
+            padding: 12px;
+
+            border-radius: 10px;
+
+            box-shadow:
+                0 0 10px rgba(0,0,0,0.2);
+        }
+
+        #status h3 {
+            margin: 0 0 10px 0;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div id="status">
+
+    <h3>
+        GPS Tracker BBB
+    </h3>
+
+    <b>Latitude:</b>
+    <span id="lat">
+        Aguardando...
+    </span>
+
+    <br><br>
+
+    <b>Longitude:</b>
+    <span id="lon">
+        Aguardando...
+    </span>
+
+    <br><br>
+
+    <b>Última atualização:</b>
+    <div id="hora">
+        ---
+    </div>
+
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+    // ==========================
+    // MAPA
+    // ==========================
+
+    const map =
+        L.map('map')
+        .setView(
+            [-3.7319, -38.5267],
+            15
+        );
+
+    L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {
+            attribution:
+                '© OpenStreetMap'
+        }
+    ).addTo(map);
+
+    const marker =
+        L.marker(
+            [-3.7319, -38.5267]
+        ).addTo(map);
+
+    let trilha = [];
+
+    let polyline =
+        L.polyline(
+            trilha
+        ).addTo(map);
+
+    // ==========================
+    // THINGSPEAK
+    // ==========================
+
+    const urlThingSpeak =
+        'https://api.thingspeak.com/channels/3404440/feeds.json?api_key=UDQSX5Q5C3XZR709&results=2';
+
+    let ultimaLatitude = null;
+    let ultimaLongitude = null;
+
+    async function atualizarGPS() {
+
+        try {
+
+            const response =
+                await fetch(
+                    urlThingSpeak
+                );
+
+            const json =
+                await response.json();
+
+            if (
+                !json.feeds ||
+                json.feeds.length === 0
+            ) {
+                return;
+            }
+
+            const ultimo =
+                json.feeds[
+                    json.feeds.length - 1
+                ];
+
+            const latitude =
+                parseFloat(
+                    ultimo.field1
+                );
+
+            const longitude =
+                parseFloat(
+                    ultimo.field2
+                );
+
+            if (
+                isNaN(latitude) ||
+                isNaN(longitude)
+            ) {
+                return;
+            }
+
+            // evita atualização duplicada
+            if (
+                latitude ===
+                    ultimaLatitude &&
+                longitude ===
+                    ultimaLongitude
+            ) {
+                return;
+            }
+
+            ultimaLatitude =
+                latitude;
+
+            ultimaLongitude =
+                longitude;
+
+            const posicao = [
+                latitude,
+                longitude
+            ];
+
+            // atualizar status
+            document
+                .getElementById('lat')
+                .innerText =
+                latitude.toFixed(6);
+
+            document
+                .getElementById('lon')
+                .innerText =
+                longitude.toFixed(6);
+
+            document
+                .getElementById('hora')
+                .innerText =
+                new Date()
+                .toLocaleTimeString();
+
+            // mover marcador
+            marker.setLatLng(
+                posicao
+            );
+
+            // centralizar mapa
+            map.setView(
+                posicao,
+                18
+            );
+
+            // popup
+            marker.bindPopup(
+                `
+                Latitude:
+                ${latitude.toFixed(6)}
+                <br>
+                Longitude:
+                ${longitude.toFixed(6)}
+                `
+            );
+
+            // trilha
+            trilha.push(
+                posicao
+            );
+
+            polyline.setLatLngs(
+                trilha
+            );
+
+        } catch(error) {
+
+            console.error(
+                'Erro:',
+                error
+            );
+        }
+    }
+
+    // primeira leitura
+    atualizarGPS();
+
+    // atualizar a cada 15 segundos
+    setInterval(
+        atualizarGPS,
+        15000
+    );
+
+</script>
+
+</body>
+</html>
+```
